@@ -107,7 +107,8 @@ def fit(model, optimizer, scheduler, criterion, train_dl, eval_dl, epochs=EPOCHS
             all_predictions = torch.cat(predictions_list)
             all_labels = torch.cat(labels_list)
             kappa_score = Utils.compute_kappa(all_predictions.cpu().numpy(), all_labels.cpu().numpy())
-            print('Evaluation Kappa: {:.4f}'.format(kappa_score))
+            accuracy_score = Utils.compute_accuracy(predictions, labels)
+            print('Evaluation Kappa: {:.4f} Accuracy: {:.4f}'.format(kappa_score, accuracy_score))
 
             eval_loss = running_loss / counter
             print('Evaluation Loss: {:.4f}'.format(eval_loss))
@@ -127,7 +128,7 @@ def main():
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.1)
 
     with Timer('Finished training in {}') as _:
-        fit(model, optimizer, scheduler, loss_func(data_properties), train_dl, eval_dl)
+        fit(model, optimizer, scheduler, Utils.KappaLoss(), train_dl, eval_dl)
 
 
 if __name__ == '__main__':
