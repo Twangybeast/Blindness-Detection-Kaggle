@@ -43,9 +43,9 @@ def get_data_properties(dataframe):
 
 def load_training_datasets():
     train_csv = pd.read_csv(os.path.join(INPUT_ROOT, 'train.csv'))
-    # Shuffle and split to train & evaluation
+    # Shuffle and split to train & validation
     train_csv = train_csv.sample(frac=1, random_state=139847)
-    split_boundary = int(len(train_csv) * EVALUATION_PERCENTAGE)
+    split_boundary = int(len(train_csv) * VALIDATION_PERCENTAGE)
     train_df, eval_df = train_csv[split_boundary:], train_csv[:split_boundary]
 
     train_ds, eval_ds = BlindnessTrainDataset(train_df), BlindnessTrainDataset(eval_df)
@@ -58,7 +58,6 @@ def loss_func(data_properties):
     return nn.CrossEntropyLoss(weights)
 
 def fit(model, optimizer, scheduler, criterion, train_dl, eval_dl, epochs=EPOCHS):
-    # TODO print kappa
     for epoch in range(epochs):
         print(f'Epoch: {epoch}/{epochs}')
         print('-' * 10)
@@ -108,10 +107,10 @@ def fit(model, optimizer, scheduler, criterion, train_dl, eval_dl, epochs=EPOCHS
             all_labels = torch.cat(labels_list)
             kappa_score = Utils.compute_kappa(all_predictions.cpu().numpy(), all_labels.cpu().numpy())
             accuracy_score = Utils.compute_accuracy(predictions, labels)
-            print('Evaluation Kappa: {:.4f} Accuracy: {:.4f}'.format(kappa_score, accuracy_score))
+            print('Validation Kappa: {:.4f} Accuracy: {:.4f}'.format(kappa_score, accuracy_score))
 
             eval_loss = running_loss / counter
-            print('Evaluation Loss: {:.4f}'.format(eval_loss))
+            print('Validation Loss: {:.4f}'.format(eval_loss))
 
         scheduler.step()
         print(f'Current LR: {scheduler.get_lr()}')
@@ -121,8 +120,8 @@ def main():
     train_ds, eval_ds, data_properties = load_training_datasets()
     train_dl = DataLoader(train_ds, batch_size=BATCH_SIZE, shuffle=True, num_workers=NUM_WORKERS)
     eval_dl = DataLoader(eval_ds, batch_size=BATCH_SIZE, shuffle=True, num_workers=NUM_WORKERS)
-    # model = Models.generate_model_mobilenet()
-    model = torch.load(MODEL_PATH)
+    model = Models.generate_model_mobilenet()
+    # model = torch.load(MODEL_PATH)
     model.to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE, weight_decay=L2_LOSS)
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.1)

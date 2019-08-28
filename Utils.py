@@ -17,8 +17,7 @@ class KappaLoss():
         for i in range(NUM_CLASSES):
             for j in range(NUM_CLASSES):
                 self.weights[i][j] = float(((i-j)**2)/16)
-        self.O = torch.zeros((NUM_CLASSES, NUM_CLASSES))
-        self.E = torch.zeros((NUM_CLASSES, NUM_CLASSES))
+        self.weights = self.weights.to(device)
 
     # Based on this guide
     # https://www.kaggle.com/aroraaman/quadratic-kappa-metric-explained-in-5-simple-steps
@@ -28,17 +27,18 @@ class KappaLoss():
             self.confusion_rows[label] = \
                 torch.index_select(output, 0, torch.nonzero(labels == label).reshape(-1)).sum(dim=0)
         # Confusion matrix O
-        torch.stack(self.confusion_rows, out=self.O)
+        O = torch.stack(self.confusion_rows)
 
-        output_hist = torch.sum(self.O, dim=0)
-        labels_hist = torch.sum(self.O, dim=1)
-        torch.ger(output_hist, labels_hist, out=self.E)
+        output_hist = torch.sum(O, dim=0)
+        labels_hist = torch.sum(O, dim=1)
+        E = torch.ger(output_hist, labels_hist)
 
-        self.O = self.O / self.O.sum()
-        self.E = self.E / self.E.sum()
+        O = O / O.sum()
+        E = E / E.sum()
 
-        num = (self.weights * self.O).sum()
-        den = (self.weights * self.E).sum()
+        num = (self.weights * O).sum()
+        den = (self.weights * E).sum()
 
-        kappa = (1 - (num/den))
+        # normally kappa is (1 - (num/den)) so we need to minize the negative kappa
+        kappa = ((num/den) - 1)
         return kappa
