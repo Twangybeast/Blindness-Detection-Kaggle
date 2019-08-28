@@ -42,3 +42,7 @@ def load_ben_color(path, sigmaX=10):
     image = cv2.addWeighted(image, 4, cv2.GaussianBlur(image, (0, 0), sigmaX), -4, 128)
 
     return image
+
+def load_preprocessed_image(path):
+    image = cv2.imread(path)
+    return image

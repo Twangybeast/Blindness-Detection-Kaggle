@@ -28,8 +28,8 @@ class BlindnessTrainDataset(Dataset):
         return len(self.data)
 
     def __getitem__(self, index: int):
-        img_name = os.path.join(INPUT_ROOT, 'train_images', self.data.iat[index, self.col_id] + '.png')
-        image = Preprocessing.load_ben_color(img_name)
+        img_name = os.path.join(INPUT_ROOT, 'train_images_cropped', self.data.iat[index, self.col_id] + '.png')
+        image = Preprocessing.load_preprocessed_image(img_name)
         image = self.transform(image)
         label = torch.tensor(self.data.iat[index, self.col_label])
         return image, label

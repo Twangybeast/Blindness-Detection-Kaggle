@@ -32,8 +32,17 @@ class PrepareImages(Dataset):
 
 if __name__ == '__main__':
     train_csv = pd.read_csv(os.path.join(INPUT_ROOT, 'train.csv'))
-    ds = PrepareImages(train_csv)
-    dl = DataLoader(ds, batch_size=16, num_workers=8)
-    with tqdm(range(len(dl))) as pbar:
-        for x in dl:
-            pbar.update()
+    # run this part first
+    # ds = PrepareImages(train_csv)
+    # dl = DataLoader(ds, batch_size=16, num_workers=8)
+    # with tqdm(range(len(dl))) as pbar:
+    #    for x in dl:
+    #        pbar.update()
+    # then run this part
+    for i in range(len(train_csv)):
+        id = train_csv.iat[i, 0]
+        if not os.path.isfile(os.path.join(INPUT_ROOT, 'train_images_cropped', id + '.png')):
+            img_name = os.path.join(INPUT_ROOT, 'train_images', train_csv.iat[i, 0] + '.png')
+            image = Preprocessing.load_ben_color(img_name)
+            cv2.imwrite(os.path.join(INPUT_ROOT, 'train_images_cropped', train_csv.iat[i, 0] + '.png'), image)
+
