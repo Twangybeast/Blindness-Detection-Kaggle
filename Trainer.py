@@ -113,6 +113,8 @@ def fit(model, optimizer, scheduler, criterion, train_dl, eval_dl, epochs=EPOCHS
             print('Evaluation Loss: {:.4f}'.format(eval_loss))
 
         scheduler.step()
+        print(f'Current LR: {scheduler.get_lr()}')
+        torch.save(model, MODEL_PATH)
 
 def main():
     train_ds, eval_ds, data_properties = load_training_datasets()
@@ -126,8 +128,6 @@ def main():
 
     with Timer('Finished training in {}') as _:
         fit(model, optimizer, scheduler, loss_func(data_properties), train_dl, eval_dl)
-
-    torch.save(model, MODEL_PATH)
 
 
 if __name__ == '__main__':
