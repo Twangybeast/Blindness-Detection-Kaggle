@@ -83,7 +83,7 @@ def fit(model, optimizer, scheduler, criterion, train_dl, eval_dl, epochs=EPOCHS
                 tk0.update()
                 tk0.set_postfix(loss=(running_loss / counter))
 
-        epoch_loss = running_loss / len(train_dl)
+        epoch_loss = running_loss / counter
         print('Training Loss: {:.4f}'.format(epoch_loss))
 
         model.eval()
@@ -109,7 +109,7 @@ def fit(model, optimizer, scheduler, criterion, train_dl, eval_dl, epochs=EPOCHS
             kappa_score = Utils.compute_kappa(all_predictions.cpu().numpy(), all_labels.cpu().numpy())
             print('Evaluation Kappa: {:.4f}'.format(kappa_score))
 
-            eval_loss = running_loss / len(eval_dl)
+            eval_loss = running_loss / counter
             print('Evaluation Loss: {:.4f}'.format(eval_loss))
 
         scheduler.step()
