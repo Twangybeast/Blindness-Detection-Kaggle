@@ -8,7 +8,7 @@ def compute_kappa(predictions, labels):
     return sklearn.metrics.cohen_kappa_score(predictions, labels, weights='quadratic')
 
 def compute_accuracy(predictions, labels):
-    return (predictions == labels).mean()
+    return sklearn.metrics.accuracy_score(predictions, labels)
 
 class KappaLoss():
     def __init__(self):

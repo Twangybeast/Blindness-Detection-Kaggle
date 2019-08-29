@@ -10,7 +10,7 @@ ImageFile.LOAD_TRUNCATED_IMAGES = True
 INPUT_ROOT = r'input'
 
 MODEL_ROOT = r'models'
-MODEL_NAME = r'mobilenet_01'
+MODEL_NAME = r'mobilenet_04'
 MODEL_PATH = os.path.join(MODEL_ROOT, MODEL_NAME)
 
 

@@ -4,6 +4,7 @@ import pandas as pd # data processing, CSV file I/O (e.g. pd.read_csv)
 import os
 
 import torch
+import visdom
 from torch import nn
 from torch.utils.data import Dataset, DataLoader
 import torchvision
@@ -58,6 +59,9 @@ def loss_func(data_properties):
     return nn.CrossEntropyLoss(weights)
 
 def fit(model, optimizer, scheduler, criterion, train_dl, eval_dl, epochs=EPOCHS):
+    # TODO save loss history
+    vis = visdom.Visdom()
+    loss_plot = vis.line(Y=[[0, 0]], X=[[0, 0]])
     for epoch in range(epochs):
         print(f'Epoch: {epoch}/{epochs}')
         print('-' * 10)
@@ -80,7 +84,7 @@ def fit(model, optimizer, scheduler, criterion, train_dl, eval_dl, epochs=EPOCHS
                 running_loss += loss.item() * inputs.size(0)
                 counter += inputs.size(0)
                 tk0.update()
-                tk0.set_postfix(loss=(running_loss / counter))
+                tk0.set_postfix(loss=('{:.4f}'.format(running_loss / counter)))
 
         epoch_loss = running_loss / counter
         print('Training Loss: {:.4f}'.format(epoch_loss))
@@ -91,27 +95,35 @@ def fit(model, optimizer, scheduler, criterion, train_dl, eval_dl, epochs=EPOCHS
             labels_list = []
             running_loss = 0.0
             counter = 0
-            for inputs, labels in eval_dl:
-                inputs = inputs.to(device)
-                labels = labels.to(device)
-                output = model(inputs)
-                loss = criterion(output, labels)
+            with tqdm(range(len(eval_dl))) as tk1:
+                for inputs, labels in eval_dl:
+                    inputs = inputs.to(device)
+                    labels = labels.to(device)
+                    output = model(inputs)
+                    loss = criterion(output, labels)
 
-                running_loss += loss.item() * inputs.size(0)
-                counter += inputs.size(0)
+                    running_loss += loss.item() * inputs.size(0)
+                    counter += inputs.size(0)
 
-                predictions = torch.argmax(output, dim=-1)
-                predictions_list.append(predictions)
-                labels_list.append(labels)
+                    predictions = torch.argmax(output, dim=-1)
+                    predictions_list.append(predictions)
+                    labels_list.append(labels)
+
+                    tk1.update()
             all_predictions = torch.cat(predictions_list)
             all_labels = torch.cat(labels_list)
-            kappa_score = Utils.compute_kappa(all_predictions.cpu().numpy(), all_labels.cpu().numpy())
+
+            predictions = all_predictions.cpu().numpy()
+            labels = all_labels.cpu().numpy()
+            kappa_score = Utils.compute_kappa(predictions, labels)
             accuracy_score = Utils.compute_accuracy(predictions, labels)
             print('Validation Kappa: {:.4f} Accuracy: {:.4f}'.format(kappa_score, accuracy_score))
 
             eval_loss = running_loss / counter
             print('Validation Loss: {:.4f}'.format(eval_loss))
 
+        vis.line(Y=[[epoch_loss, eval_loss]], X=[[epoch, epoch]], win=loss_plot,
+                 update=('append' if epoch else 'replace'))
         scheduler.step()
         print(f'Current LR: {scheduler.get_lr()}')
         torch.save(model, MODEL_PATH)
