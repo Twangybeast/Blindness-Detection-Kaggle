@@ -1,3 +1,4 @@
+import cv2
 import numpy as np # linear algebra
 import pandas as pd # data processing, CSV file I/O (e.g. pd.read_csv)
 
@@ -31,6 +32,7 @@ class BlindnessTrainDataset(Dataset):
     def __getitem__(self, index: int):
         img_name = os.path.join(INPUT_ROOT, 'train_images_t1_512', self.data.iat[index, self.col_id] + '.png')
         image = Preprocessing.load_preprocessed_image(img_name)
+        image = cv2.resize(image, (224, 224))
         image = self.transform(image)
         label = torch.tensor(self.data.iat[index, self.col_label])
         return image, label
@@ -68,17 +70,22 @@ def fit(model, optimizer, scheduler, criterion, train_dl, eval_dl, epochs=EPOCHS
 
         running_loss = 0.0
         counter = 0
+        next_step = STEP_FREQ
         with tqdm(range(len(train_dl))) as tk0:
             for inputs, labels in train_dl:
                 inputs = inputs.to(device)
                 labels = labels.to(device)
 
-                optimizer.zero_grad()
-
                 output = model(inputs)
                 loss = criterion(output, labels)
                 loss.backward()
-                optimizer.step()
+
+                if next_step == 0:
+                    optimizer.step()
+                    optimizer.zero_grad()
+                    next_step = STEP_FREQ
+                else:
+                    next_step = next_step - 1
 
                 running_loss += loss.item() * inputs.size(0)
                 counter += inputs.size(0)
@@ -105,8 +112,8 @@ def fit(model, optimizer, scheduler, criterion, train_dl, eval_dl, epochs=EPOCHS
                     counter += inputs.size(0)
 
                     predictions = torch.argmax(output, dim=-1)
-                    predictions_list.append(predictions)
-                    labels_list.append(labels)
+                    predictions_list.append(predictions.cpu())
+                    labels_list.append(labels.cpu())
 
                     tk1.update()
             all_predictions = torch.cat(predictions_list)
@@ -125,25 +132,25 @@ def fit(model, optimizer, scheduler, criterion, train_dl, eval_dl, epochs=EPOCHS
                  update=('append' if epoch else 'replace'))
         scheduler.step()
         print(f'Current LR: {scheduler.get_lr()}')
-        torch.save(model, MODEL_PATH)
+        torch.save(model.state_dict(), MODEL_PATH)
         torch.save({
-            'optimizer': optimizer,
-            'scheduler': scheduler
+            'optimizer': optimizer.state_dict(),
+            'scheduler': scheduler.state_dict()
         }, STATE_PATH)
 
 def main():
     train_ds, eval_ds, data_properties = load_training_datasets()
     train_dl = DataLoader(train_ds, batch_size=BATCH_SIZE, shuffle=True, num_workers=NUM_WORKERS)
     eval_dl = DataLoader(eval_ds, batch_size=BATCH_SIZE, shuffle=True, num_workers=NUM_WORKERS)
-    #model = Models.generate_model_mobilenet()
-    model = torch.load(MODEL_PATH)
+    # model = Models.generate_model_efficientnet()
+    model = Models.load_model_efficientnet(MODEL_PATH)
     model.to(device)
 
     optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE, weight_decay=L2_LOSS)
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.1)
-    #ckpt = torch.load(STATE_PATH)
-    #optimizer.load_state_dict(ckpt['optimizer'])
-    #scheduler.load_state_dict(ckpt['scheduler'])
+    ckpt = torch.load(STATE_PATH)
+    optimizer.load_state_dict(ckpt['optimizer'])
+    scheduler.load_state_dict(ckpt['scheduler'])
 
     with Timer('Finished training in {}') as _:
         fit(model, optimizer, scheduler, Utils.KappaLoss(), train_dl, eval_dl)

@@ -22,3 +22,7 @@ def generate_model_efficientnet():
     )
     return model
 
+def load_model_efficientnet(path):
+    model = generate_model_efficientnet()
+    model.load_state_dict(torch.load(path))
+    return model

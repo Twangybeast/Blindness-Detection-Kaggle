@@ -1,3 +1,4 @@
+import cv2
 import numpy as np # linear algebra
 import pandas as pd # data processing, CSV file I/O (e.g. pd.read_csv)
 
@@ -28,8 +29,9 @@ class BlindnessMagicDataset(Dataset):
         return len(self.data)
 
     def __getitem__(self, index: int):
-        img_name = os.path.join(INPUT_ROOT, 'train_images_cropped', self.data.iat[index, self.col_id] + '.png')
+        img_name = os.path.join(INPUT_ROOT, 'train_images_t1_512', self.data.iat[index, self.col_id] + '.png')
         image = Preprocessing.load_preprocessed_image(img_name)
+        image = cv2.resize(image, (224, 224))
         image = self.transform(image)
         label = torch.tensor(self.data.iat[index, self.col_label])
         return image, label

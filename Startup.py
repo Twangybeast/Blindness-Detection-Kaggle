@@ -10,7 +10,7 @@ ImageFile.LOAD_TRUNCATED_IMAGES = True
 INPUT_ROOT = r'input'
 
 MODEL_ROOT = r'models'
-MODEL_NAME = r'mobilenet_05'
+MODEL_NAME = r'efficientnet_00.pth'
 MODEL_PATH = os.path.join(MODEL_ROOT, MODEL_NAME)
 STATE_PATH = os.path.join(MODEL_ROOT, 'training')
 
@@ -22,7 +22,8 @@ IMG_SIZE = 512
 
 NUM_CLASSES = 5
 
-BATCH_SIZE = 16
+BATCH_SIZE = 8
+STEP_FREQ = 2
 EPOCHS = 100
 NUM_WORKERS = 8
 
