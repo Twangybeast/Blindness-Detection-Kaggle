@@ -16,10 +16,6 @@ def generate_model_mobilenet():
 
 def generate_model_efficientnet():
     model = EfficientNet.from_pretrained('efficientnet-b5', num_classes=5)
-    model._fc = nn.Sequential(
-        model._fc,
-        nn.Softmax(dim=-1)
-    )
     return model
 
 def load_model_efficientnet(path):

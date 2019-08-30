@@ -112,7 +112,7 @@ def fit(model, optimizer, scheduler, criterion, train_dl, eval_dl, epochs=EPOCHS
                     running_loss += loss.item() * inputs.size(0)
                     counter += inputs.size(0)
 
-                    predictions = torch.argmax(output, dim=-1)
+                    predictions = torch.argmax(torch.softmax(output, dim=-1), dim=-1)
                     predictions_list.append(predictions.cpu())
                     labels_list.append(labels.cpu())
 
