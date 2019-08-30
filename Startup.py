@@ -20,7 +20,7 @@ NEW_MODEL = True
 VALIDATION_PERCENTAGE = 0.1
 
 # TODO figure out if large images work
-IMG_SIZE = 256
+IMG_SIZE = 224
 
 NUM_CLASSES = 5
 
