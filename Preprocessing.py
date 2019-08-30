@@ -43,6 +43,91 @@ def load_ben_color(path, sigmaX=10):
 
     return image
 
+MINIMUM_PARAM2 = 2
+PARAM2_BASELINE = 10
+BASELINE_AREA = 2588 * 1958
+
+# Circular crop of the image
+def load_twangy_color(path, sigmaX=10):
+    image = cv2.imread(path)
+    height, width, _ = image.shape
+    param2 = max(MINIMUM_PARAM2, round(PARAM2_BASELINE * (width * height) / BASELINE_AREA))
+    hough_image = create_binary_image(image, width, height)
+    circles = cv2.HoughCircles(hough_image, cv2.HOUGH_GRADIENT, 1, 20, param1=20,
+                               param2=param2, minRadius=int(height/3), maxRadius=int(width/1.5))
+    image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+    if circles is None:
+        # TODO better backup plan
+        image = crop_image_from_gray(image)
+        print(f'Failed to find circles for {path}')
+    else:
+        circles = np.uint16(np.around(circles))
+        circle = circles[0, 0]
+        circle[2] *= 0.98   # TODO This is a really dumb idea
+        x = int(circle[0])
+        y = int(circle[1])
+        r = int(circle[2])
+
+        # figure out how much to crop
+        x1 = x - r
+        x2 = x + r + 1
+        y1 = y - r
+        y2 = y + r + 1
+
+        # keep track of how much border to add
+        left, right, top, bottom = 0, 0, 0, 0
+        if x1 < 0:
+            left = -x1
+            x1 = 0
+        if x2 > width:
+            right = x2 - width
+            x2 = width
+        if y1 < 0:
+            top = -y1
+            y1 = 0
+        if y2 > height:
+            bottom = y2 - height
+            y2 = height
+
+        # crop it
+        image = image[y1:y2, x1:x2, :]
+        x = x - x1
+        y = y - y1
+        # pad the image with black borders
+        # TODO actually use a network to artificially generate this part to prevent fitting on metadata
+        image = cv2.copyMakeBorder(image, top, bottom, left, right, cv2.BORDER_REFLECT_101, (0, 0, 0))
+        x = x + left
+        y = y + top
+
+        # mask out the pixels outside the circle
+        mask = np.zeros(image.shape[:-1], np.uint8)
+        cv2.circle(mask, (x, y), r, 255, -1)
+        image = cv2.bitwise_and(image, image, mask=mask)
+
+    image = cv2.resize(image, (IMG_SIZE, IMG_SIZE))
+    image = cv2.addWeighted(image, 4, cv2.GaussianBlur(image, (0, 0), sigmaX), -4, 128)
+
+    return image
+
+
 def load_preprocessed_image(path):
     image = cv2.imread(path)
     return image
+
+def create_binary_image(image, width, height):
+    hough_image = np.zeros((height + 2, width + 2), np.uint8)
+    loDiff = 30
+    upDiff = 10
+    flags = 4 | (255 << 8) | cv2.FLOODFILL_FIXED_RANGE | cv2.FLOODFILL_MASK_ONLY
+    gray_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    cv2.floodFill(gray_image, hough_image, (0, 0),
+                  None, loDiff=loDiff, upDiff=upDiff, flags=flags)
+    cv2.floodFill(gray_image, hough_image, (0, height - 1),
+                  None, loDiff=loDiff, upDiff=upDiff, flags=flags)
+    cv2.floodFill(gray_image, hough_image, (width - 1, 0),
+                  None, loDiff=loDiff, upDiff=upDiff, flags=flags)
+    cv2.floodFill(gray_image, hough_image, (width - 1, height - 1),
+                  None, loDiff=loDiff, upDiff=upDiff, flags=flags)
+    hough_image = hough_image[1:height + 1, 1:width + 1]
+    hough_image = cv2.GaussianBlur(hough_image, (7, 7), 0)
+    return hough_image

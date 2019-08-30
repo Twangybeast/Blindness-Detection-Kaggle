@@ -29,7 +29,7 @@ class BlindnessTrainDataset(Dataset):
         return len(self.data)
 
     def __getitem__(self, index: int):
-        img_name = os.path.join(INPUT_ROOT, 'train_images_cropped', self.data.iat[index, self.col_id] + '.png')
+        img_name = os.path.join(INPUT_ROOT, 'train_images_t1_512', self.data.iat[index, self.col_id] + '.png')
         image = Preprocessing.load_preprocessed_image(img_name)
         image = self.transform(image)
         label = torch.tensor(self.data.iat[index, self.col_label])
@@ -59,7 +59,6 @@ def loss_func(data_properties):
     return nn.CrossEntropyLoss(weights)
 
 def fit(model, optimizer, scheduler, criterion, train_dl, eval_dl, epochs=EPOCHS):
-    # TODO save loss history
     vis = visdom.Visdom()
     loss_plot = vis.line(Y=[[0, 0]], X=[[0, 0]])
     for epoch in range(epochs):
