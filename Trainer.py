@@ -1,3 +1,5 @@
+import time
+
 import cv2
 import numpy as np # linear algebra
 import pandas as pd # data processing, CSV file I/O (e.g. pd.read_csv)
@@ -32,7 +34,7 @@ class BlindnessTrainDataset(Dataset):
     def __getitem__(self, index: int):
         img_name = os.path.join(INPUT_ROOT, 'train_images_t1_512', self.data.iat[index, self.col_id] + '.png')
         image = Preprocessing.load_preprocessed_image(img_name)
-        image = cv2.resize(image, (224, 224))
+        image = Image.fromarray(image)
         image = self.transform(image)
         label = torch.tensor(self.data.iat[index, self.col_label])
         return image, label
@@ -55,7 +57,6 @@ def load_training_datasets():
     return train_ds, eval_ds, get_data_properties(train_csv)
 
 def loss_func(data_properties):
-    # TODO try continuous kappa loss function
     weights = 1/torch.tensor(data_properties['class_freqs'])
     weights = weights.to(device)
     return nn.CrossEntropyLoss(weights)
@@ -76,16 +77,16 @@ def fit(model, optimizer, scheduler, criterion, train_dl, eval_dl, epochs=EPOCHS
                 inputs = inputs.to(device)
                 labels = labels.to(device)
 
+
                 output = model(inputs)
                 loss = criterion(output, labels)
                 loss.backward()
 
+                next_step = next_step - 1
                 if next_step == 0:
                     optimizer.step()
                     optimizer.zero_grad()
                     next_step = STEP_FREQ
-                else:
-                    next_step = next_step - 1
 
                 running_loss += loss.item() * inputs.size(0)
                 counter += inputs.size(0)
@@ -138,19 +139,23 @@ def fit(model, optimizer, scheduler, criterion, train_dl, eval_dl, epochs=EPOCHS
             'scheduler': scheduler.state_dict()
         }, STATE_PATH)
 
+# TODO try using fastai learner
 def main():
     train_ds, eval_ds, data_properties = load_training_datasets()
     train_dl = DataLoader(train_ds, batch_size=BATCH_SIZE, shuffle=True, num_workers=NUM_WORKERS)
     eval_dl = DataLoader(eval_ds, batch_size=BATCH_SIZE, shuffle=True, num_workers=NUM_WORKERS)
-    # model = Models.generate_model_efficientnet()
-    model = Models.load_model_efficientnet(MODEL_PATH)
+    if NEW_MODEL:
+        model = Models.generate_model_efficientnet()
+    else:
+        model = Models.load_model_efficientnet(MODEL_PATH)
     model.to(device)
 
     optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE, weight_decay=L2_LOSS)
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.1)
-    ckpt = torch.load(STATE_PATH)
-    optimizer.load_state_dict(ckpt['optimizer'])
-    scheduler.load_state_dict(ckpt['scheduler'])
+    if not NEW_MODEL:
+        ckpt = torch.load(STATE_PATH)
+        optimizer.load_state_dict(ckpt['optimizer'])
+        scheduler.load_state_dict(ckpt['scheduler'])
 
     with Timer('Finished training in {}') as _:
         fit(model, optimizer, scheduler, Utils.KappaLoss(), train_dl, eval_dl)

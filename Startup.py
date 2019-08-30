@@ -10,15 +10,17 @@ ImageFile.LOAD_TRUNCATED_IMAGES = True
 INPUT_ROOT = r'input'
 
 MODEL_ROOT = r'models'
-MODEL_NAME = r'efficientnet_00.pth'
+MODEL_NAME = r'efficientnet_01.pth'
 MODEL_PATH = os.path.join(MODEL_ROOT, MODEL_NAME)
 STATE_PATH = os.path.join(MODEL_ROOT, 'training')
+
+NEW_MODEL = True
 
 
 VALIDATION_PERCENTAGE = 0.1
 
 # TODO figure out if large images work
-IMG_SIZE = 512
+IMG_SIZE = 256
 
 NUM_CLASSES = 5
 

@@ -7,6 +7,10 @@ from Startup import *
 
 def transform_ndarray2tensor():
     return transforms.Compose([
+        transforms.RandomHorizontalFlip(),
+        transforms.RandomVerticalFlip(),
+        transforms.RandomRotation(10, resample=Image.BICUBIC),  # Arbitrary degree value
+        transforms.Resize(IMG_SIZE),
         transforms.ToTensor(),
         # normalize the images to torchvision models specifications
         transforms.Normalize(mean=[0.485, 0.456, 0.406],
@@ -59,7 +63,10 @@ def load_twangy_color(path, sigmaX=10):
     if circles is None:
         # TODO better backup plan
         image = crop_image_from_gray(image)
+        image = cv2.resize(image, (IMG_SIZE, IMG_SIZE))
+        image = cv2.addWeighted(image, 4, cv2.GaussianBlur(image, (0, 0), sigmaX), -4, 128)
         print(f'Failed to find circles for {path}')
+        # shouldn't fail (hasn't happened in like forever)
     else:
         circles = np.uint16(np.around(circles))
         circle = circles[0, 0]
@@ -93,8 +100,9 @@ def load_twangy_color(path, sigmaX=10):
         image = image[y1:y2, x1:x2, :]
         x = x - x1
         y = y - y1
-        # pad the image with black borders
+        # pad the image with reflection of the image
         # TODO actually use a network to artificially generate this part to prevent fitting on metadata
+        # TODO at least make it so some of the images aren't so weird
         image = cv2.copyMakeBorder(image, top, bottom, left, right, cv2.BORDER_REFLECT_101, (0, 0, 0))
         x = x + left
         y = y + top
@@ -104,14 +112,18 @@ def load_twangy_color(path, sigmaX=10):
         cv2.circle(mask, (x, y), r, 255, -1)
         image = cv2.bitwise_and(image, image, mask=mask)
 
-    image = cv2.resize(image, (IMG_SIZE, IMG_SIZE))
-    image = cv2.addWeighted(image, 4, cv2.GaussianBlur(image, (0, 0), sigmaX), -4, 128)
+        image = cv2.resize(image, (IMG_SIZE, IMG_SIZE))
+        mask = cv2.resize(image, (IMG_SIZE, IMG_SIZE))
+        blurred = get_masked_blur(image, mask, sigmaX)
+        image = cv2.addWeighted(image, 4, blurred, -4, 128)
+        image[mask == 0] = 0
 
     return image
 
 
 def load_preprocessed_image(path):
     image = cv2.imread(path)
+    image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
     return image
 
 def create_binary_image(image, width, height):
@@ -131,3 +143,13 @@ def create_binary_image(image, width, height):
     hough_image = hough_image[1:height + 1, 1:width + 1]
     hough_image = cv2.GaussianBlur(hough_image, (7, 7), 0)
     return hough_image
+
+def get_masked_blur(image, mask, sigmaX):
+    image[mask == 0] = 0
+    blurred_image = cv2.GaussianBlur(image, (0, 0), sigmaX)
+    blurred_mask = cv2.GaussianBlur(mask, (0, 0), sigmaX)
+    blurred_mask = cv2.cvtColor(blurred_mask, cv2.COLOR_GRAY2RGB)
+    blurred_mask[blurred_mask == 0] = 1
+    result = 255. * blurred_image / blurred_mask
+    result = np.rint(result).astype(np.uint8)
+    return result

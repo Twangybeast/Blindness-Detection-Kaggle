@@ -31,7 +31,7 @@ class BlindnessMagicDataset(Dataset):
     def __getitem__(self, index: int):
         img_name = os.path.join(INPUT_ROOT, 'train_images_t1_512', self.data.iat[index, self.col_id] + '.png')
         image = Preprocessing.load_preprocessed_image(img_name)
-        image = cv2.resize(image, (224, 224))
+        image = Image.fromarray(image)
         image = self.transform(image)
         label = torch.tensor(self.data.iat[index, self.col_label])
         return image, label
@@ -64,7 +64,7 @@ def main():
     train_ds, eval_ds, data_properties = Trainer.load_training_datasets()
     eval_ds = BlindnessMagicDataset(eval_ds.data)
     eval_dl = DataLoader(eval_ds, batch_size=BATCH_SIZE, shuffle=False, num_workers=NUM_WORKERS)
-    model = torch.load(MODEL_PATH)
+    model = Models.load_model_efficientnet(MODEL_PATH)
     model.to(device)
 
     print('Beginning evaluation')
