@@ -113,7 +113,7 @@ def load_twangy_color(path, sigmaX=10):
         image = cv2.bitwise_and(image, image, mask=mask)
 
         image = cv2.resize(image, (IMG_SIZE, IMG_SIZE))
-        mask = cv2.resize(image, (IMG_SIZE, IMG_SIZE))
+        mask = cv2.resize(mask, (IMG_SIZE, IMG_SIZE))
         blurred = get_masked_blur(image, mask, sigmaX)
         image = cv2.addWeighted(image, 4, blurred, -4, 128)
         image[mask == 0] = 0

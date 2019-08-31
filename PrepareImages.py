@@ -15,7 +15,7 @@ from Startup import *
 
 # Super janky method to utilize Dataset's parallelization in order to preprocess all the images
 
-FOLDER_NAME = 'train_images_t1_512'
+FOLDER_NAME = 'train_images_t2_512'
 
 class PrepareImages(Dataset):
     def __init__(self, data):
