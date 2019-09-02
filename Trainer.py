@@ -8,6 +8,9 @@ import os
 
 import torch
 import visdom
+from fastai.basic_train import Learner, DataBunch
+from fastai.metrics import KappaScore
+from fastai.train import lr_find
 from torch import nn
 from torch.utils.data import Dataset, DataLoader
 import torchvision
@@ -25,14 +28,14 @@ class BlindnessTrainDataset(Dataset):
     def __init__(self, data):
         self.data = data
         self.transform = Preprocessing.transform_ndarray2tensor()
-        self.col_id = self.data.columns.get_loc('id_code')      # should be 0
-        self.col_label = self.data.columns.get_loc('diagnosis')     # should be 1
+        self.col_id = self.data.columns.get_loc(IMAGE_ID)      # should be 0
+        self.col_label = self.data.columns.get_loc(IMAGE_LABEL)     # should be 1
 
     def __len__(self):
         return len(self.data)
 
     def __getitem__(self, index: int):
-        img_name = os.path.join(INPUT_ROOT, 'train_images_t1_512', self.data.iat[index, self.col_id] + '.png')
+        img_name = os.path.join(INPUT_ROOT, IMAGE_FOLDER, self.data.iat[index, self.col_id] + '.png')
         image = Preprocessing.load_preprocessed_image(img_name)
         image = Image.fromarray(image)
         image = self.transform(image)
@@ -40,14 +43,14 @@ class BlindnessTrainDataset(Dataset):
         return image, label
 
 def get_data_properties(dataframe):
-    counts = dataframe['diagnosis'].value_counts(normalize=True)
+    counts = dataframe[IMAGE_LABEL].value_counts(normalize=True)
     freqs = [0] * 5
     for i in range(NUM_CLASSES):
         freqs[i] = counts[i]
     return {'class_freqs': freqs}
 
 def load_training_datasets():
-    train_csv = pd.read_csv(os.path.join(INPUT_ROOT, 'train.csv'))
+    train_csv = pd.read_csv(os.path.join(INPUT_ROOT, TRAINING_CSV))
     # Shuffle and split to train & validation
     train_csv = train_csv.sample(frac=1, random_state=139847)
     split_boundary = int(len(train_csv) * VALIDATION_PERCENTAGE)
@@ -61,10 +64,47 @@ def loss_func(data_properties):
     weights = weights.to(device)
     return nn.CrossEntropyLoss(weights)
 
-def fit(model, optimizer, scheduler, criterion, train_dl, eval_dl, epochs=EPOCHS):
+def find_lr(model, criterion, train_dl, eval_dl, initial_lr=1e-4, gamma=1.05):
+    optimizer = torch.optim.SGD(model.parameters(), lr=initial_lr)
+    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, 1, gamma)
+
     vis = visdom.Visdom()
-    loss_plot = vis.line(Y=[[0, 0]], X=[[0, 0]])
-    for epoch in range(epochs):
+    loss_plot = vis.line(Y=[0], X=[0.])
+
+    running_loss = 0.
+    plot_freq = 50
+    for epoch in range(5):
+        with tqdm(range(len(train_dl))) as pbar:
+            for batch, (inputs, labels) in enumerate(train_dl):
+                inputs = inputs.to(device)
+                labels = labels.to(device)
+
+                output = model(inputs)
+                loss = criterion(output, labels)
+                loss.backward()
+
+                running_loss += loss.item()
+
+                optimizer.step()
+
+                pbar.update()
+                pbar.set_postfix(lr='%.6f' % scheduler.get_lr()[0], test=model._conv_stem.weight.grad[0][0][0][0].item())
+                optimizer.zero_grad()
+
+                if (batch + 1) % plot_freq == 0:
+                    vis.line(Y=[running_loss / plot_freq], X=[scheduler.get_lr()[0]], win=loss_plot,
+                             update=('append' if batch > plot_freq else 'replace'))
+                    scheduler.step()
+                    running_loss = 0.
+
+def fit(model, optimizer, scheduler, criterion, train_dl, eval_dl, loss_history, epochs=EPOCHS):
+    vis = visdom.Visdom()
+    if loss_history is None:
+        loss_history = [[0, 0]]
+    last_epoch = scheduler.last_epoch
+    loss_plot = vis.line(Y=loss_history, X=list(zip(range(last_epoch), range(last_epoch))) if last_epoch else [[0, 0]],
+                         opts={'title': f'Training {MODEL_NAME}'})
+    for epoch in range(last_epoch, epochs):
         print(f'Epoch: {epoch}/{epochs}')
         print('-' * 10)
         model.train()
@@ -76,7 +116,6 @@ def fit(model, optimizer, scheduler, criterion, train_dl, eval_dl, epochs=EPOCHS
             for inputs, labels in train_dl:
                 inputs = inputs.to(device)
                 labels = labels.to(device)
-
 
                 output = model(inputs)
                 loss = criterion(output, labels)
@@ -131,12 +170,14 @@ def fit(model, optimizer, scheduler, criterion, train_dl, eval_dl, epochs=EPOCHS
 
         vis.line(Y=[[epoch_loss, eval_loss]], X=[[epoch, epoch]], win=loss_plot,
                  update=('append' if epoch else 'replace'))
+        loss_history.append([epoch_loss, eval_loss])
         scheduler.step()
         print(f'Current LR: {scheduler.get_lr()}')
         torch.save(model.state_dict(), MODEL_PATH)
         torch.save({
             'optimizer': optimizer.state_dict(),
-            'scheduler': scheduler.state_dict()
+            'scheduler': scheduler.state_dict(),
+            'history': torch.tensor(loss_history)
         }, STATE_PATH)
 
 # TODO try using fastai learner
@@ -150,15 +191,28 @@ def main():
         model = Models.load_model_efficientnet(MODEL_PATH)
     model.to(device)
 
+    # learn = Learner(DataBunch(train_dl, eval_dl),
+    #                 model,
+    #                 loss_func=Utils.KappaLoss(),
+    #                 metrics=[KappaScore(weights='quadratic')],
+    #                 path='.')
+    # learn.fit(5)
+
+    # learn.recorder.plot_losses()
+
     optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE, weight_decay=L2_LOSS)
-    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.1)
+    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=2, gamma=0.7)
+    loss_history = None
     if not NEW_MODEL:
         ckpt = torch.load(STATE_PATH)
         optimizer.load_state_dict(ckpt['optimizer'])
         scheduler.load_state_dict(ckpt['scheduler'])
+        loss_history = ckpt['history'].numpy().tolist()
 
     with Timer('Finished training in {}') as _:
-        fit(model, optimizer, scheduler, Utils.KappaLoss(), train_dl, eval_dl)
+        fit(model, optimizer, scheduler, Utils.KappaLoss(data_properties['class_freqs']),
+            train_dl, eval_dl, loss_history)
+        # find_lr(model, Utils.KappaLoss(), train_dl, eval_dl)
 
 
 if __name__ == '__main__':
