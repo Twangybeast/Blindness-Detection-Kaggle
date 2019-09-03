@@ -1,3 +1,4 @@
+import math
 import torch
 import sklearn.metrics
 
@@ -18,8 +19,6 @@ class KappaLoss():
             for j in range(NUM_CLASSES):
                 self.weights[i][j] = float(((i-j)**2)/16)
         self.weights = self.weights.to(device)
-        self.labels_hist = torch.tensor(class_freqs, dtype=torch.float, device=device)
-        self.labels_hist = self.labels_hist / self.labels_hist.sum()
         self.softmax = torch.nn.Softmax(dim=-1)
 
     # Based on this guide
@@ -34,8 +33,8 @@ class KappaLoss():
         O = torch.stack(self.confusion_rows)
 
         output_hist = torch.sum(O, dim=0)
-        output_hist = output_hist / output_hist.sum()
-        E = torch.ger(output_hist, self.labels_hist)
+        labels_hist = torch.sum(O, dim=1)
+        E = torch.ger(output_hist, labels_hist)
 
         O = O / O.sum()
         E = E / E.sum()

@@ -16,7 +16,7 @@ IMAGE_ID = 'image' # id_code
 IMAGE_LABEL = 'level' # diagnosis
 
 MODEL_ROOT = r'models'
-MODEL_NAME = r'efficientnet_04.pth'
+MODEL_NAME = r'efficientnet_05.pth'
 MODEL_PATH = os.path.join(MODEL_ROOT, MODEL_NAME)
 STATE_PATH = os.path.join(MODEL_ROOT, 'training')
 
@@ -37,5 +37,5 @@ EPOCHS = 100
 NUM_WORKERS = 8
 
 LEARNING_RATE = 1e-4
-L2_LOSS = 1e-6
 
+L2_LOSS = 0

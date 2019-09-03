@@ -26,10 +26,15 @@ from Timer import Timer
 
 class BlindnessTrainDataset(Dataset):
     def __init__(self, data):
+        self.original = data
         self.data = data
         self.transform = Preprocessing.transform_ndarray2tensor()
         self.col_id = self.data.columns.get_loc(IMAGE_ID)      # should be 0
         self.col_label = self.data.columns.get_loc(IMAGE_LABEL)     # should be 1
+
+    def rebalance_classes(self):
+        g = self.original.groupby(IMAGE_LABEL)
+        self.data = pd.DataFrame(g.apply(lambda x: x.sample(g.size().min()).reset_index(drop=True)))
 
     def __len__(self):
         return len(self.data)
@@ -97,17 +102,22 @@ def find_lr(model, criterion, train_dl, eval_dl, initial_lr=1e-4, gamma=1.05):
                     scheduler.step()
                     running_loss = 0.
 
-def fit(model, optimizer, scheduler, criterion, train_dl, eval_dl, loss_history, epochs=EPOCHS):
+
+def fit(model, optimizer, scheduler, criterion, train_dl, eval_dl, loss_history, on_epoch_start=None, epochs=EPOCHS):
     vis = visdom.Visdom()
-    if loss_history is None:
-        loss_history = [[0, 0]]
     last_epoch = scheduler.last_epoch
-    loss_plot = vis.line(Y=loss_history, X=list(zip(range(last_epoch), range(last_epoch))) if last_epoch else [[0, 0]],
+    loss_plot = vis.line(Y=[[0, 0]] if loss_history is None else loss_history,
+                         X=list(zip(range(last_epoch), range(last_epoch))) if last_epoch else [[0, 0]],
                          opts={'title': f'Training {MODEL_NAME}'})
+    if loss_history is None:
+        loss_history = []
     for epoch in range(last_epoch, epochs):
         print(f'Epoch: {epoch}/{epochs}')
         print('-' * 10)
         model.train()
+
+        if on_epoch_start is not None:
+            on_epoch_start()
 
         running_loss = 0.0
         counter = 0
@@ -207,11 +217,13 @@ def main():
         ckpt = torch.load(STATE_PATH)
         optimizer.load_state_dict(ckpt['optimizer'])
         scheduler.load_state_dict(ckpt['scheduler'])
+        optimizer.param_groups[0]['lr'] = scheduler.get_lr()[0]
         loss_history = ckpt['history'].numpy().tolist()
 
     with Timer('Finished training in {}') as _:
-        fit(model, optimizer, scheduler, Utils.KappaLoss(data_properties['class_freqs']),
-            train_dl, eval_dl, loss_history)
+        loss = Utils.KappaLoss(data_properties['class_freqs'])
+        fit(model, optimizer, scheduler, loss,
+            train_dl, eval_dl, loss_history, train_ds.rebalance_classes)
         # find_lr(model, Utils.KappaLoss(), train_dl, eval_dl)
 
 
