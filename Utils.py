@@ -45,3 +45,6 @@ class KappaLoss():
         # normally kappa is (1 - (num/den)) so we need to minimize the negative kappa
         kappa = ((num/den) - 1)
         return kappa
+
+def predict_class(output):
+    return torch.round(torch.clamp(output, 0, NUM_CLASSES - 1)).to(torch.int64)

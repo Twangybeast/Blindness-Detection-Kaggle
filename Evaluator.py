@@ -45,9 +45,9 @@ def evaluate(model, dl):
         for inputs, labels in dl:
             inputs = inputs.to(device)
             labels = labels.to(device)
-            output = model(inputs)
+            output = model(inputs).squeeze(-1)
 
-            predictions = torch.argmax(torch.softmax(output, dim=-1), dim=-1)
+            predictions = Utils.predict_class(output)
             predictions_list.append(predictions)
             labels_list.append(labels)
         all_predictions = torch.cat(predictions_list)

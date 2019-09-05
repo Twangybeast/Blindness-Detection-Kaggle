@@ -127,8 +127,8 @@ def fit(model, optimizer, scheduler, criterion, train_dl, eval_dl, loss_history,
                 inputs = inputs.to(device)
                 labels = labels.to(device)
 
-                output = model(inputs)
-                loss = criterion(output, labels)
+                output = model(inputs).squeeze(-1)
+                loss = criterion(output, labels.to(torch.float))
                 loss.backward()
 
                 next_step = next_step - 1
@@ -155,13 +155,13 @@ def fit(model, optimizer, scheduler, criterion, train_dl, eval_dl, loss_history,
                 for inputs, labels in eval_dl:
                     inputs = inputs.to(device)
                     labels = labels.to(device)
-                    output = model(inputs)
-                    loss = criterion(output, labels)
+                    output = model(inputs).squeeze(-1)
+                    loss = criterion(output, labels.to(torch.float))
 
                     running_loss += loss.item() * inputs.size(0)
                     counter += inputs.size(0)
 
-                    predictions = torch.argmax(torch.softmax(output, dim=-1), dim=-1)
+                    predictions = Utils.predict_class(output)
                     predictions_list.append(predictions.cpu())
                     labels_list.append(labels.cpu())
 
@@ -190,7 +190,6 @@ def fit(model, optimizer, scheduler, criterion, train_dl, eval_dl, loss_history,
             'history': torch.tensor(loss_history)
         }, STATE_PATH)
 
-# TODO try using fastai learner
 def main():
     train_ds, eval_ds, data_properties = load_training_datasets()
     train_dl = DataLoader(train_ds, batch_size=BATCH_SIZE, shuffle=True, num_workers=NUM_WORKERS)
@@ -211,17 +210,18 @@ def main():
     # learn.recorder.plot_losses()
 
     optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE, weight_decay=L2_LOSS)
-    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=2, gamma=0.7)
+    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.9)
     loss_history = None
-    if not NEW_MODEL:
+    if not NEW_TRAINING:
         ckpt = torch.load(STATE_PATH)
         optimizer.load_state_dict(ckpt['optimizer'])
         scheduler.load_state_dict(ckpt['scheduler'])
         optimizer.param_groups[0]['lr'] = scheduler.get_lr()[0]
         loss_history = ckpt['history'].numpy().tolist()
 
-    with Timer('Finished training in {}') as _:
-        loss = Utils.KappaLoss(data_properties['class_freqs'])
+    with Timer('Finished training_05 in {}') as _:
+        # loss = Utils.KappaLoss(data_properties['class_freqs'])
+        loss = nn.MSELoss()
         fit(model, optimizer, scheduler, loss,
             train_dl, eval_dl, loss_history, train_ds.rebalance_classes)
         # find_lr(model, Utils.KappaLoss(), train_dl, eval_dl)
