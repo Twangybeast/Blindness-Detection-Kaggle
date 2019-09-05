@@ -47,14 +47,20 @@ def load_ben_color(path, sigmaX=10):
 
     return image
 
+MAXIMUM_HEIGHT = 1024
+
 MINIMUM_PARAM2 = 2
 PARAM2_BASELINE = 10
 BASELINE_AREA = 2588 * 1958
 
 # Circular crop of the image
-def load_twangy_color(path, sigmaX=10):
+def load_twangy_color(path, image_size=IMG_SIZE, sigmaX=10):
     image = cv2.imread(path)
     height, width, _ = image.shape
+    if height > MAXIMUM_HEIGHT:
+        image = cv2.resize(image, (int(1024 * width/height), 1024))
+        height, width, _ = image.shape
+        assert False  # shouldn't happen on local machine since all the images are already rescaled
     param2 = max(MINIMUM_PARAM2, round(PARAM2_BASELINE * (width * height) / BASELINE_AREA))
     hough_image = create_binary_image(image, width, height)
     circles = cv2.HoughCircles(hough_image, cv2.HOUGH_GRADIENT, 1, 20, param1=20,
@@ -63,7 +69,7 @@ def load_twangy_color(path, sigmaX=10):
     if circles is None:
         # TODO better backup plan
         image = crop_image_from_gray(image)
-        image = cv2.resize(image, (IMG_SIZE, IMG_SIZE))
+        image = cv2.resize(image, (image_size, image_size))
         image = cv2.addWeighted(image, 4, cv2.GaussianBlur(image, (0, 0), sigmaX), -4, 128)
         print(f'Failed to find circles for {path}')
         # shouldn't fail (hasn't happened in like forever)
@@ -103,7 +109,7 @@ def load_twangy_color(path, sigmaX=10):
         # pad the image with reflection of the image
         # TODO actually use a network to artificially generate this part to prevent fitting on metadata
         # TODO at least make it so some of the images aren't so weird
-        image = cv2.copyMakeBorder(image, top, bottom, left, right, cv2.BORDER_REFLECT_101, (0, 0, 0))
+        image = cv2.copyMakeBorder(image, top, bottom, left, right, cv2.BORDER_CONSTANT, (0, 0, 0))
         x = x + left
         y = y + top
 
@@ -112,8 +118,8 @@ def load_twangy_color(path, sigmaX=10):
         cv2.circle(mask, (x, y), r, 255, -1)
         image = cv2.bitwise_and(image, image, mask=mask)
 
-        image = cv2.resize(image, (IMG_SIZE, IMG_SIZE))
-        mask = cv2.resize(mask, (IMG_SIZE, IMG_SIZE))
+        image = cv2.resize(image, (image_size, image_size))
+        mask = cv2.bitwise_not(create_binary_image(image, image_size, image_size, False))
         blurred = get_masked_blur(image, mask, sigmaX)
         image = cv2.addWeighted(image, 4, blurred, -4, 128)
         image[mask == 0] = 0
@@ -126,7 +132,7 @@ def load_preprocessed_image(path):
     image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
     return image
 
-def create_binary_image(image, width, height):
+def create_binary_image(image, width, height, do_blur=True):
     hough_image = np.zeros((height + 2, width + 2), np.uint8)
     loDiff = 30
     upDiff = 10
@@ -141,7 +147,8 @@ def create_binary_image(image, width, height):
     cv2.floodFill(gray_image, hough_image, (width - 1, height - 1),
                   None, loDiff=loDiff, upDiff=upDiff, flags=flags)
     hough_image = hough_image[1:height + 1, 1:width + 1]
-    hough_image = cv2.GaussianBlur(hough_image, (7, 7), 0)
+    if do_blur:
+        hough_image = cv2.GaussianBlur(hough_image, (7, 7), 0)
     return hough_image
 
 def get_masked_blur(image, mask, sigmaX):

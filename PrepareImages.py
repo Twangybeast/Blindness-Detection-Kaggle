@@ -13,26 +13,7 @@ import Preprocessing
 from Startup import *
 
 
-# Super janky method to utilize Dataset's parallelization in order to preprocess all the images
-
-FOLDER_NAME = 'test15_t2_512'
-
-class PrepareImages(Dataset):
-    def __init__(self, data):
-        self.data = data
-        self.transform = Preprocessing.transform_ndarray2tensor()
-        self.col_id = self.data.columns.get_loc('id_code')      # should be 0
-        self.col_label = self.data.columns.get_loc('diagnosis')     # should be 1
-
-    def __len__(self):
-        return len(self.data)
-
-    def __getitem__(self, index: int):
-        img_name = os.path.join(INPUT_ROOT, 'test15', self.data.iat[index, self.col_id] + '.png')
-        image = Preprocessing.load_twangy_color(img_name)
-        cv2.imwrite(os.path.join(INPUT_ROOT, FOLDER_NAME, self.data.iat[index, self.col_id] + '.png'), image)
-        return 0
-
+FOLDER_NAME = 'test15_t3_512'
 
 if __name__ == '__main__':
     train_csv = pd.read_csv(os.path.join(INPUT_ROOT, 'testLabels15.csv'))
@@ -52,7 +33,7 @@ if __name__ == '__main__':
         id = train_csv.iat[i, 0]
         if not os.path.isfile(os.path.join(INPUT_ROOT, FOLDER_NAME, id + '.png')):
             img_name = os.path.join(INPUT_ROOT, 'test15', train_csv.iat[i, 0] + '.jpg')
-            image = Preprocessing.load_twangy_color(img_name)
+            image = Preprocessing.load_twangy_color(img_name, image_size=512)
             cv2.imwrite(os.path.join(INPUT_ROOT, FOLDER_NAME, train_csv.iat[i, 0] + '.png'), image)
 
             vis.line(Y=[(timeit.default_timer() - time1)], X=[i], win=heartbeat_plot,
