@@ -13,10 +13,10 @@ import Preprocessing
 from Startup import *
 
 
-FOLDER_NAME = 'test15_t3_512'
+FOLDER_NAME = 'train_images_t3_512'
 
 if __name__ == '__main__':
-    train_csv = pd.read_csv(os.path.join(INPUT_ROOT, 'testLabels15.csv'))
+    train_csv = pd.read_csv(os.path.join(INPUT_ROOT, 'trainLabels19.csv'))
     if not os.path.exists(os.path.join(INPUT_ROOT, FOLDER_NAME)):
         os.makedirs(os.path.join(INPUT_ROOT, FOLDER_NAME))
     # run this part first
@@ -32,7 +32,7 @@ if __name__ == '__main__':
         time1 = timeit.default_timer()
         id = train_csv.iat[i, 0]
         if not os.path.isfile(os.path.join(INPUT_ROOT, FOLDER_NAME, id + '.png')):
-            img_name = os.path.join(INPUT_ROOT, 'test15', train_csv.iat[i, 0] + '.jpg')
+            img_name = os.path.join(INPUT_ROOT, 'train_images', train_csv.iat[i, 0] + '.png')
             image = Preprocessing.load_twangy_color(img_name, image_size=512)
             cv2.imwrite(os.path.join(INPUT_ROOT, FOLDER_NAME, train_csv.iat[i, 0] + '.png'), image)
 

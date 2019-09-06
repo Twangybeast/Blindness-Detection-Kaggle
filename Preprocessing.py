@@ -1,6 +1,7 @@
 import cv2
 import numpy as np
 from torchvision import transforms
+import random
 
 from Startup import *
 
@@ -14,8 +15,17 @@ def transform_ndarray2tensor():
         transforms.ToTensor(),
         # normalize the images to torchvision models specifications
         transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                             std=[0.229, 0.224, 0.225])
+                             std=[0.229, 0.224, 0.225]),
+        transform_erase
     ])
+
+TRANSFORM_CUTOUT = transforms.RandomErasing(p=0.8,scale=(0.02, 0.08))
+
+def transform_erase(image):
+    num_cutouts = round(random.gauss(7, 2))
+    for _ in range(num_cutouts):
+        image = TRANSFORM_CUTOUT(image)
+    return image
 
 
 def crop_image_from_gray(img, tol=7):
@@ -60,7 +70,6 @@ def load_twangy_color(path, image_size=IMG_SIZE, sigmaX=10):
     if height > MAXIMUM_HEIGHT:
         image = cv2.resize(image, (int(1024 * width/height), 1024))
         height, width, _ = image.shape
-        assert False  # shouldn't happen on local machine since all the images are already rescaled
     param2 = max(MINIMUM_PARAM2, round(PARAM2_BASELINE * (width * height) / BASELINE_AREA))
     hough_image = create_binary_image(image, width, height)
     circles = cv2.HoughCircles(hough_image, cv2.HOUGH_GRADIENT, 1, 20, param1=20,
