@@ -111,6 +111,7 @@ def fit(model, optimizer, scheduler, criterion, train_dl, eval_dl, loss_history,
                          opts={'title': f'Training {MODEL_NAME}'})
     if loss_history is None:
         loss_history = []
+    best_metrics = None
     for epoch in range(last_epoch, epochs):
         print(f'Epoch: {epoch}/{epochs}')
         print('-' * 10)
@@ -178,6 +179,13 @@ def fit(model, optimizer, scheduler, criterion, train_dl, eval_dl, loss_history,
             eval_loss = running_loss / counter
             print('Validation Loss: {:.4f}'.format(eval_loss))
 
+            cur_metrics = (kappa_score, accuracy_score, -eval_loss)
+            if best_metrics is None or all([m_cur >= m_best for m_best, m_cur in zip(best_metrics, cur_metrics)]):
+                print('New best model. Saving...')
+                torch.save(model.state_dict(), MODEL_PATH + '.best')
+                best_metrics = cur_metrics
+
+
         vis.line(Y=[[epoch_loss, eval_loss]], X=[[epoch, epoch]], win=loss_plot,
                  update=('append' if epoch else 'replace'))
         loss_history.append([epoch_loss, eval_loss])
@@ -199,15 +207,6 @@ def main():
     else:
         model = Models.load_model_efficientnet(MODEL_PATH)
     model.to(device)
-
-    # learn = Learner(DataBunch(train_dl, eval_dl),
-    #                 model,
-    #                 loss_func=Utils.KappaLoss(),
-    #                 metrics=[KappaScore(weights='quadratic')],
-    #                 path='.')
-    # learn.fit(5)
-
-    # learn.recorder.plot_losses()
 
     optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE, weight_decay=L2_LOSS)
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.9)
